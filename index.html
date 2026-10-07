@@ -77,7 +77,7 @@ function playNote(i){
   const n = notes[i], dur = n.d * speed, t = audioCtx.currentTime;
   const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
   osc.type = "triangle"; osc.frequency.value = n.f;
-  g.gain.setValueAtTime(.6, t);
+  g.gain.setValueAtTime(.9, t);
   g.gain.exponentialRampToValueAtTime(.04, t + dur);
   osc.connect(g); g.connect(audioCtx.destination);
   n.sp.classList.add("jump");
