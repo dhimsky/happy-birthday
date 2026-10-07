@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Happy Birthday</title>
+<style>
+:root{--ink:#ccc;--card:hsla(210,50%,15%,.75)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{overflow:hidden;background:radial-gradient(#374566,#010203) fixed;color:var(--ink);
+  font-family:Raleway,"Segoe UI",Verdana,sans-serif;letter-spacing:.12em;font-size:clamp(14px,4.6vw,28px);
+  -webkit-tap-highlight-color:transparent;user-select:none}
+canvas{position:fixed;inset:0;width:100%;height:100%}
+#bg{z-index:0}
+#fw{z-index:2;opacity:0;pointer-events:none;transition:opacity 1.2s}
+#fw.on{opacity:1}
+#stage{position:fixed;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:1.2em;padding:env(safe-area-inset-top) 4vw env(safe-area-inset-bottom);transition:opacity 1s}
+#stage.hide{opacity:0;pointer-events:none}
+span{display:inline-block}
+span.jump{animation:jump .25s cubic-bezier(.68,-.55,.265,1.55) 0s 2 alternate}
+@keyframes jump{to{transform:translateY(-.7em)}}
+#pleaseClick{background:var(--card);font-size:80%;width:11em;padding:.3em 0;text-align:center;animation:jump 1s ease-in-out infinite alternate;transition:opacity .4s}
+#pleaseClick.gone{opacity:0}
+#pleaseClick b{font-size:200%;font-weight:400;line-height:1}
+#wishes{width:min(92vw,22em);border:1px dotted;text-align:center;background:var(--card);padding:.6em 0;cursor:pointer}
+#wishes p{margin:.3em 0}
+.control{margin-top:.8em!important}
+input[type=range]{-webkit-appearance:none;appearance:none;width:80%;height:3px;background:#777;outline:none;margin:.9em 0 .5em}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border:3px solid #374566;border-radius:50%;background:#777}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border:3px solid #374566;border-radius:50%;background:#777}
+#replay{position:fixed;z-index:3;left:50%;bottom:calc(5vh + env(safe-area-inset-bottom));transform:translateX(-50%);
+  font:inherit;font-size:max(14px,.75em);letter-spacing:.12em;color:var(--ink);background:var(--card);border:1px dotted var(--ink);
+  padding:.6em 1.4em;cursor:pointer;opacity:0;pointer-events:none;transition:opacity 1s}
+#replay.on{opacity:1;pointer-events:auto}
+#replay:focus-visible,input:focus-visible{outline:2px solid #FFBDD8;outline-offset:3px}
+@media (prefers-reduced-motion:reduce){#pleaseClick,span.jump{animation:none}}
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<canvas id="fw"></canvas>
+<div id="stage">
+  <div id="pleaseClick">Ketuk di sini<br><b>&#9759;</b></div>
+  <div id="wishes">
+    <p id="p1"></p><p id="p2"></p><p id="p3"></p><p id="p4"></p>
+    <p class="control"><input type="range" id="inputSpeed" min="0.1" max="2" step="0.1" value="0.5" aria-label="Kecepatan lagu"></p>
+  </div>
+</div>
+<button id="replay">Ulangi</button>
+
+<script>
+const $ = id => document.getElementById(id);
+const stage = $("stage"), fwC = $("fw"), replay = $("replay"), hint = $("pleaseClick");
+
+/* ================= BAGIAN 1: MUSIK + LIRIK ================= */
+const AC = window.AudioContext || window.webkitAudioContext;
+const audioCtx = new AC();
+const P = [$("p1"), $("p2"), $("p3"), $("p4")];
+const notes = [
+  [262,.5,"Hap",0],[262,.5,"py&nbsp;",0],[294,1,"Birth",0],[262,1,"day&nbsp;",0],[349,1,"To&nbsp;",0],[330,2,"You",0],
+  [262,.5,"Hap",1],[262,.5,"py&nbsp;",1],[294,1,"Birth",1],[262,1,"day&nbsp;",1],[392,1,"To&nbsp;",1],[349,2,"You",1],
+  [262,.5,"Hap",2],[262,.5,"py&nbsp;",2],[523,1,"Birth",2],[440,1,"day&nbsp;",2],[349,1,"Dear&nbsp;",2],[330,1,"Frie",2],[294,3,"nd",2],
+  [466,.5,"Hap",3],[466,.5,"py&nbsp;",3],[440,1,"Birth",3],[349,1,"day&nbsp;",3],[392,1,"To&nbsp;",3],[349,2,"You",3]
+].map(([f,d,t,p]) => {
+  const sp = document.createElement("span");
+  sp.innerHTML = t; P[p].appendChild(sp);
+  return {f, d, sp};
+});
+
+let speed = +$("inputSpeed").value, playing = false;
+$("inputSpeed").addEventListener("input", e => speed = +e.target.value);
+
+function playNote(i){
+  if (i >= notes.length) { playing = false; setTimeout(showFireworks, 700); return; }
+  const n = notes[i], dur = n.d * speed, t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+  osc.type = "triangle"; osc.frequency.value = n.f;
+  g.gain.setValueAtTime(.15, t);
+  g.gain.exponentialRampToValueAtTime(.01, t + dur);
+  osc.connect(g); g.connect(audioCtx.destination);
+  n.sp.classList.add("jump");
+  osc.onended = () => { n.sp.classList.remove("jump"); playNote(i + 1); };
+  osc.start(t); osc.stop(t + dur);
+}
+
+$("wishes").addEventListener("click", e => {
+  if (e.target.id === "inputSpeed" || playing) return;
+  playing = true; hint.classList.add("gone");
+  audioCtx.resume().then(() => playNote(0));
+});
+
+/* ================= BAGIAN 2: KEMBANG API ================= */
+const ctx = fwC.getContext("2d");
+const Tau = Math.PI * 2, TQ = Tau / 4;
+const strings = ["HAPPY", "BIRTHDAY!", "to You"];
+let w, h, hw, hh, k, opts, letters = [], raf = null, dpr = 1;
+
+function setup(){
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  w = innerWidth; h = innerHeight; hw = w / 2; hh = h / 2;
+  fwC.width = w * dpr; fwC.height = h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const maxLen = Math.max(...strings.map(s => s.length));
+  const spacing = Math.min(w * .92 / maxLen, 84);        // responsif + lebih besar
+  const cs = spacing * .82;
+  k = cs / 30;
+  opts = {
+    cs, spacing, lh: cs * 1.5, total: spacing * maxLen,
+    prev: 10, lw: 5 * k, lwAdd: 8 * k, spawn: 200, reach: 30, reachAdd: 30,
+    circ: 20 * k, circAdd: 10 * k, circT: 30, circTAdd: 30, fadeT: 10, fadeTAdd: 5,
+    shards: 5, shardsAdd: 5, shardPrev: 3, shardVel: 4 * k, shardVelAdd: 2 * k, shardSize: 3 * k, shardSizeAdd: 3 * k,
+    gravity: .1 * k, upFlow: -.1 * k, wait: 360, bSpawn: 20, bInfl: 10, bInflAdd: 10,
+    bSize: 20 * k, bSizeAdd: 20 * k, bVel: .4 * k, bVelAdd: .4 * k, bRad: -(Math.PI / 2 - .5), bRadAdd: -1
+  };
+  ctx.font = "600 " + cs + "px Raleway, Verdana, sans-serif";
+  letters = [];
+  strings.forEach((s, i) => [...s].forEach((c, j) => {
+    if (c === " ") return;
+    letters.push(new Letter(c,
+      j * spacing + spacing / 2 - s.length * spacing / 2,
+      i * opts.lh + opts.lh / 2 - strings.length * opts.lh / 2));
+  }));
+}
+
+function Letter(ch, x, y){
+  this.char = ch; this.x = x; this.y = y;
+  this.dx = -ctx.measureText(ch).width / 2; this.dy = opts.cs / 2;
+  this.fireworkDy = y - hh;
+  const hue = ((x / opts.total) + .5) * 360;
+  this.color = `hsl(${hue},80%,50%)`;
+  this.alphaColor = `hsla(${hue},80%,50%,alp)`;
+  this.lightAlphaColor = `hsla(${hue},80%,light%,alp)`;
+  this.lightColor = `hsl(${hue},80%,light%)`;
+  this.reset();
+}
+Letter.prototype.reset = function(){
+  this.phase = "firework"; this.tick = 0; this.spawned = false;
+  this.spawningTime = (opts.spawn * Math.random()) | 0;
+  this.reachTime = (opts.reach + opts.reachAdd * Math.random()) | 0;
+  this.lineWidth = opts.lw + opts.lwAdd * Math.random();
+  this.prevPoints = [[0, hh, 0]];
+};
+Letter.prototype.text = function(x, y){
+  ctx.fillStyle = this.lightColor.replace("light", 70);
+  ctx.fillText(this.char, x + this.dx, y + this.dy);
+};
+Letter.prototype.step = function(){
+  const o = opts;
+  if (this.phase === "firework") {
+    if (!this.spawned) {
+      if (++this.tick >= this.spawningTime) { this.tick = 0; this.spawned = true; }
+      return;
+    }
+    ++this.tick;
+    const lin = this.tick / this.reachTime, arm = Math.sin(lin * TQ);
+    const x = lin * this.x, y = hh + arm * this.fireworkDy;
+    if (this.prevPoints.length > o.prev) this.prevPoints.shift();
+    this.prevPoints.push([x, y, lin * this.lineWidth]);
+    const lwp = 1 / (this.prevPoints.length - 1);
+    for (let i = 1; i < this.prevPoints.length; ++i) {
+      const a = this.prevPoints[i], b = this.prevPoints[i - 1];
+      ctx.strokeStyle = this.alphaColor.replace("alp", i / this.prevPoints.length);
+      ctx.lineWidth = a[2] * lwp * i;
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    }
+    if (this.tick >= this.reachTime) {
+      this.phase = "contemplate";
+      this.circleFinalSize = o.circ + o.circAdd * Math.random();
+      this.circleCompleteTime = (o.circT + o.circTAdd * Math.random()) | 0;
+      this.circleCreating = true; this.circleFading = false;
+      this.circleFadeTime = (o.fadeT + o.fadeTAdd * Math.random()) | 0;
+      this.tick = 0; this.tick2 = 0; this.shards = [];
+      const n = (o.shards + o.shardsAdd * Math.random()) | 0, ang = Tau / n;
+      const cos = Math.cos(ang), sin = Math.sin(ang);
+      let sx = 1, sy = 0;
+      for (let i = 0; i < n; ++i) {
+        const t = sx; sx = sx * cos - sy * sin; sy = sy * cos + t * sin;
+        this.shards.push(new Shard(this.x, this.y, sx, sy, this.alphaColor));
+      }
+    }
+  } else if (this.phase === "contemplate") {
+    ++this.tick;
+    if (this.circleCreating) {
+      ++this.tick2;
+      const p = this.tick2 / this.circleCompleteTime, arm = -Math.cos(p * Math.PI) / 2 + .5;
+      ctx.fillStyle = this.lightAlphaColor.replace("light", 50 + 50 * p).replace("alp", p);
+      ctx.beginPath(); ctx.arc(this.x, this.y, arm * this.circleFinalSize, 0, Tau); ctx.fill();
+      if (this.tick2 > this.circleCompleteTime) { this.tick2 = 0; this.circleCreating = false; this.circleFading = true; }
+    } else if (this.circleFading) {
+      this.text(this.x, this.y);
+      ++this.tick2;
+      const p = this.tick2 / this.circleFadeTime, arm = -Math.cos(p * Math.PI) / 2 + .5;
+      ctx.fillStyle = this.lightAlphaColor.replace("light", 100).replace("alp", 1 - arm);
+      ctx.beginPath(); ctx.arc(this.x, this.y, this.circleFinalSize, 0, Tau); ctx.fill();
+      if (this.tick2 >= this.circleFadeTime) this.circleFading = false;
+    } else this.text(this.x, this.y);
+
+    for (let i = 0; i < this.shards.length; ++i) {
+      this.shards[i].step();
+      if (!this.shards[i].alive) this.shards.splice(i--, 1);
+    }
+    if (this.tick > o.wait) {
+      this.phase = "balloon"; this.tick = 0; this.spawning = true; this.inflating = false;
+      this.spawnTime = (o.bSpawn * Math.random()) | 0;
+      this.inflateTime = (o.bInfl + o.bInflAdd * Math.random()) | 0;
+      this.size = (o.bSize + o.bSizeAdd * Math.random()) | 0;
+      const rad = o.bRad + o.bRadAdd * Math.random(), vel = o.bVel + o.bVelAdd * Math.random();
+      this.vx = Math.cos(rad) * vel; this.vy = Math.sin(rad) * vel;
+    }
+  } else if (this.phase === "balloon") {
+    ctx.strokeStyle = this.lightColor.replace("light", 80);
+    ctx.lineWidth = Math.max(1, k);
+    if (this.spawning) {
+      ++this.tick; this.text(this.x, this.y);
+      if (this.tick >= this.spawnTime) { this.tick = 0; this.spawning = false; this.inflating = true; }
+    } else if (this.inflating) {
+      ++this.tick;
+      const p = this.tick / this.inflateTime;
+      const x = this.cx = this.x, y = this.cy = this.y - this.size * p;
+      ctx.fillStyle = this.alphaColor.replace("alp", p);
+      ctx.beginPath(); balloon(x, y, this.size * p); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, this.y); ctx.stroke();
+      this.text(this.x, this.y);
+      if (this.tick >= this.inflateTime) { this.tick = 0; this.inflating = false; }
+    } else {
+      this.cx += this.vx; this.cy += this.vy += o.upFlow;
+      ctx.fillStyle = this.color;
+      ctx.beginPath(); balloon(this.cx, this.cy, this.size); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(this.cx, this.cy); ctx.lineTo(this.cx, this.cy + this.size); ctx.stroke();
+      this.text(this.cx, this.cy + this.size);
+      if (this.cy + this.size < -hh || this.cx < -hw || this.cx > hw) this.phase = "done";
+    }
+  }
+};
+
+function Shard(x, y, vx, vy, color){
+  const vel = opts.shardVel + opts.shardVelAdd * Math.random();
+  this.vx = vx * vel; this.vy = vy * vel; this.x = x; this.y = y;
+  this.prevPoints = [[x, y]]; this.color = color; this.alive = true;
+  this.size = opts.shardSize + opts.shardSizeAdd * Math.random();
+}
+Shard.prototype.step = function(){
+  this.x += this.vx; this.y += this.vy += opts.gravity;
+  if (this.prevPoints.length > opts.shardPrev) this.prevPoints.shift();
+  this.prevPoints.push([this.x, this.y]);
+  const lwp = this.size / this.prevPoints.length;
+  for (let i = 0; i < this.prevPoints.length - 1; ++i) {
+    const a = this.prevPoints[i], b = this.prevPoints[i + 1];
+    ctx.strokeStyle = this.color.replace("alp", i / this.prevPoints.length);
+    ctx.lineWidth = i * lwp;
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+  }
+  if (this.prevPoints[0][1] > hh) this.alive = false;
+};
+function balloon(x, y, s){
+  ctx.moveTo(x, y);
+  ctx.bezierCurveTo(x - s / 2, y - s / 2, x - s / 4, y - s, x, y - s);
+  ctx.bezierCurveTo(x + s / 4, y - s, x + s / 2, y - s / 2, x, y);
+}
+
+function anim(){
+  raf = requestAnimationFrame(anim);
+  ctx.clearRect(0, 0, w, h);          // transparan: latar gradien tema tetap terlihat
+  ctx.save(); ctx.translate(hw, hh);
+  let done = true;
+  for (const l of letters) { l.step(); if (l.phase !== "done") done = false; }
+  ctx.restore();
+  if (done) letters.forEach(l => l.reset());
+}
+
+function showFireworks(){
+  stage.classList.add("hide");
+  setup(); fwC.classList.add("on"); replay.classList.add("on");
+  if (!raf) anim();
+}
+replay.addEventListener("click", () => {
+  fwC.classList.remove("on"); replay.classList.remove("on");
+  cancelAnimationFrame(raf); raf = null;
+  stage.classList.remove("hide"); hint.classList.remove("gone");
+});
+addEventListener("resize", () => { if (raf) setup(); });
+
+/* ================= LATAR: POLIGON MELAYANG ================= */
+const bg = $("bg"), bctx = bg.getContext("2d");
+const colors = ["#93DFB8", "#FFC8BA", "#E3AAD6", "#B5D8EB", "#FFBDD8"];
+let bw, bh;
+function sizeBg(){ bw = bg.width = innerWidth; bh = bg.height = innerHeight; }
+sizeBg(); addEventListener("resize", sizeBg);
+const parts = Array.from({length: 22}, () => {
+  const l = 3 + ~~(Math.random() * 2);
+  return {x: Math.random() * innerWidth, y: Math.random() * innerHeight, r: 15 + ~~(Math.random() * 20), l,
+    rot: Math.random() * Math.PI, sp: .05 + Math.random() / 2, rs: .005 + Math.random() * .005,
+    c: colors[~~(Math.random() * colors.length)]};
+});
+(function drawBg(){
+  requestAnimationFrame(drawBg);
+  bctx.clearRect(0, 0, bw, bh);
+  const s = Math.max(1, Math.min(bw, 900) / 600);
+  for (const p of parts) {
+    p.rot += p.rs; p.y -= p.sp;
+    if (p.y < -p.r * s) { p.y = bh + p.r * s; p.x = Math.random() * bw; }
+    bctx.save(); bctx.translate(p.x, p.y); bctx.rotate(p.rot); bctx.beginPath();
+    for (let i = 0; i < p.l; i++) bctx.lineTo(p.r * s * Math.cos(Tau / p.l * i), p.r * s * Math.sin(Tau / p.l * i));
+    bctx.closePath(); bctx.lineWidth = 4; bctx.strokeStyle = p.c; bctx.stroke(); bctx.restore();
+  }
+})();
+</script>
+</body>
+</html>
